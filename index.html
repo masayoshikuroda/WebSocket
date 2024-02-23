@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>MQTT Client</title>
+    <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
+    <style>
+        h1 {
+            background-color:cornflowerblue;
+            color: azure;
+        }
+        h2 {
+            color:coral;
+        }
+        input {
+            width: 100%;
+        }
+        table {
+            border-collapse: collapse;
+            width: 100%;
+        }
+        table, tr {
+            border: solid 1px cadetblue;
+        }
+        table th, table td {
+            border: dashed 1px cadetblue;
+        }
+        table th {
+            background-color:cadetblue;
+            color: azure;
+        }
+    </style>
+</head>
+<body>
+
+<h1>MQTT Client</h1>
+
+<h2>Connection</h2>
+<div id="divConnection">
+    <label for=txtUrl"">MQTT Broker URL:
+        <div>
+            <input id="txtUrl" onchange="setUrl(this.value)"/>
+        </div>
+    </label>
+    <button id="btnConnect"    type="button" onclick="btnConnect_onclick()"     />Connect</button>    
+    <button id="btnDisconnect" type="button" onclick="btnDisconnect_onclick()" />Disconect</button>    
+</div>
+
+<h2>Subscription</h2>
+<div id="divSubscription">
+    <label for="txtTopic">MQTT Topic:
+        <div>
+            <input id="txtTopic" onchange="setTopic(this.value)"/>
+        </div>
+    </label>
+    <button id="btnSubscribe"   type="button" onclick="btnSubscribe_onclick()"   >Subscribe</button>
+    <button id="btnUnsubscribe" type="button" onclick="btnUnsubscribe_onclick()" >Unsubscribe</button>
+</div>
+
+<h2>Keywords</h2>
+<div id="divKeyword">
+    <label for="txtKeywords">Keywords:
+        <div>
+            <input id="txtKeywords" onchange="setKeywords(this.value)"/>    
+        </div>
+    </label>
+    <button id="btnClear" type="button" onclick="btnApply_onclick()" >Apply</button>
+    <div id="content"></div>
+</div>
+
+<h2>Messages</h2>
+<div id="divMessaged">
+    <table id="tblMessages"></table>
+</div>
+
+<script>
+
+const options = {
+  clean: true,
+  connectTimeout: 4000,
+  clientId: 'websocket_client',
+  username: '',
+  password: '',
+}
+
+var url = "ws://mqtt.local:8883"
+var topic = "ble2mqtt/#"
+var keywords = "address,rssi"
+var client;
+
+document.querySelector('#txtUrl').value = url
+document.querySelector('#btnConnect').disabled = null
+document.querySelector('#btnDisconnect').disabled = "disabled"
+document.querySelector('#txtTopic').value = topic
+document.querySelector('#btnSubscribe').disabled = "disabled"
+document.querySelector('#btnUnsubscribe').disabled = "disabled"
+document.querySelector('#txtKeywords').value = keywords
+btnApply_onclick()
+console.log("Page loaded.")
+
+function onconnect(connack) {
+    console.log('Connected.')
+    document.querySelector('#txtUrl').readOnly = true
+    document.querySelector('#btnConnect').disabled = "disabled"
+    document.querySelector('#btnDisconnect').disabled = null
+    document.querySelector('#btnSubscribe').disabled = null
+    document.querySelector('#btnUnsubscribe').disabled = "disabled"
+}
+
+function ondclose() {
+    console.log('Disconnected.')
+    document.querySelector('#txtUrl').readOnly = false
+    document.querySelector('#btnConnect').disabled = null
+    document.querySelector('#btnDisconnect').disabled = "disabled"
+    document.querySelector('#btnSubscribe').disabled = "disabled"
+    document.querySelector('#btnUnsubscribe').disabled = "disabled"
+}
+
+function onsubscribe(error, granted) {
+    if (error) {
+        console.log("Subscribe Error:" + error)
+        return
+    }
+    console.log(`${granted[0].topic} was subscribed`)
+    document.querySelector('#txtTopic').readOnly = true
+    document.querySelector('#btnSubscribe').disabled = "disabled"
+    document.querySelector('#btnUnsubscribe').disabled = null
+}
+
+function onunsubscribe(error) {
+    if (error) {
+        console.log("Unsubscribe Error:" + error)
+        return
+    }
+    console.log("Unsubscribed.")
+    document.querySelector('#txtTopic').readOnly = false
+    document.querySelector('#btnSubscribe').disabled = null
+    document.querySelector('#btnUnsubscribe').disabled = "disabled"
+}
+
+function onmessage(topic, message) {
+    json = JSON.parse(message)
+
+    const tbl = document.querySelector('#tblMessages')
+    var tr = tbl.insertRow(1);
+    tr.insertCell(0).textContent = new Date().toISOString()
+
+    for (keyword of keywords.split(',')) {
+        var cell = tr.insertCell(-1);
+        cell.textContent = json[keyword]
+    }
+    console.log(topic + ": " + message.toString())
+}
+
+async function setUrl(value) {
+    url = value;
+    console.log("Set URL: " + value);
+}
+
+async function setTopic(value) {
+    topic = value;
+    console.log("Set Topic: " + value);
+}
+
+async function setKeywords(value) {
+    keywords = value;
+    console.log("Set Keywords: " + value);
+}
+
+async function btnConnect_onclick() {
+    console.log("Conncting...")
+    client  = mqtt.connect(url, options)
+
+    client.on('connect', onconnect)
+    client.on('close', ondclose)
+    client.on('message', onmessage)
+
+    client.on('reconnect', function () {
+        console.log('Reconnecting...')
+    })
+    client.on('disconnect', function (packet) {
+        console.log(packet)
+    })
+    client.on('offline', function () {
+        console.log('offline')
+    })
+    client.on('error', function (error) {
+        console.log(error)
+    })
+}
+
+async function btnDisconnect_onclick() {
+    console.log("Disconnecting...")
+    client.end();
+}
+
+async function btnSubscribe_onclick() {
+    console.log("Subscribing...")
+    let options = { qos: 0 }
+    client.subscribe(topic, options, onsubscribe)
+}
+
+async function btnUnsubscribe_onclick() {
+    console.log("Unsubscribing...")
+    client.unsubscribe(topic, onunsubscribe)
+}
+
+async function btnApply_onclick() {
+    let headers = keywords.split(',')
+    headers.unshift('received at')
+    
+    console.log("Clear messages...")
+    const tbl = document.querySelector('#tblMessages')
+    while (tbl.rows.length > 0) tbl.deleteRow(0);
+
+    const tr = tbl.insertRow(0);
+    for (header of headers) {
+        const th = document.createElement('th')
+        th.innerText = header
+        tr.appendChild(th)
+    }
+}
+</script>
+
+</body>
+</html>
