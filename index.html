@@ -21,10 +21,10 @@
         table, tr {
             border: solid 1px cadetblue;
         }
-        table th, table td {
+        table thead td, table tbody td {
             border: dashed 1px cadetblue;
         }
-        table th {
+        table thead td {
             background-color:cadetblue;
             color: azure;
         }
@@ -38,7 +38,7 @@
 <div id="divConnection">
     <label for=txtUrl"">MQTT Broker URL:
         <div>
-            <input id="txtUrl" onchange="setUrl(this.value)"/>
+            <input id="txtUrl" onchange="url=this.value"/>
         </div>
     </label>
     <button id="btnConnect"    type="button" onclick="btnConnect_onclick()"     />Connect</button>    
@@ -49,28 +49,37 @@
 <div id="divSubscription">
     <label for="txtTopic">MQTT Topic:
         <div>
-            <input id="txtTopic" onchange="setTopic(this.value)"/>
+            <input id="txtTopic" onchange="topic=this.value"/>
         </div>
     </label>
     <button id="btnSubscribe"   type="button" onclick="btnSubscribe_onclick()"   >Subscribe</button>
     <button id="btnUnsubscribe" type="button" onclick="btnUnsubscribe_onclick()" >Unsubscribe</button>
 </div>
 
-<h2>Keywords</h2>
+<h2>Topics</h2>
 <div id="divKeyword">
     <label for="txtKeywords">Keywords:
         <div>
-            <input id="txtKeywords" onchange="setKeywords(this.value)"/>    
+            <input id="txtKeywords" onchange="keywords = this.value"/>    
         </div>
     </label>
-    <button id="btnClear" type="button" onclick="btnApply_onclick()" >Apply</button>
-    <div id="content"></div>
+    <button id="btnApply" type="button" onclick="btnApply_onclick()" >Apply</button>
+</div>
+
+<div id="divTopic">
+    <table id="tblTopic">
+        <caption>Topics</caption>
+        <thead></thead>
+        <tbody></tbody>
+    </table>
 </div>
 
 <h2>Messages</h2>
-<div id="divMessaged">
-    <table id="tblMessages"></table>
+<div id="divMessage">
+    <button id="btnClear" type="button" onclick="btnClear_onclick()" >Clear</button>
+    <ul id="ulMessage"></ul>
 </div>
+
 
 <script>
 
@@ -82,9 +91,9 @@ const options = {
   password: '',
 }
 
-var url = "ws://mqtt.local:8883"
-var topic = "ble2mqtt/#"
-var keywords = "address,rssi"
+var url = "ws://localhost:8883"
+var topic = "#"
+var keywords = "topic:Topic,received_at: Last Update,address:Address,model:Model,temperature:Temp[℃],humidity:Humid[%],power:Power[W],battery:Batt[%],type:Type,measured_instantaneous:P[kW],value:Value"
 var client;
 
 document.querySelector('#txtUrl').value = url
@@ -96,75 +105,6 @@ document.querySelector('#btnUnsubscribe').disabled = "disabled"
 document.querySelector('#txtKeywords').value = keywords
 btnApply_onclick()
 console.log("Page loaded.")
-
-function onconnect(connack) {
-    console.log('Connected.')
-    document.querySelector('#txtUrl').readOnly = true
-    document.querySelector('#btnConnect').disabled = "disabled"
-    document.querySelector('#btnDisconnect').disabled = null
-    document.querySelector('#btnSubscribe').disabled = null
-    document.querySelector('#btnUnsubscribe').disabled = "disabled"
-}
-
-function ondclose() {
-    console.log('Disconnected.')
-    document.querySelector('#txtUrl').readOnly = false
-    document.querySelector('#btnConnect').disabled = null
-    document.querySelector('#btnDisconnect').disabled = "disabled"
-    document.querySelector('#btnSubscribe').disabled = "disabled"
-    document.querySelector('#btnUnsubscribe').disabled = "disabled"
-}
-
-function onsubscribe(error, granted) {
-    if (error) {
-        console.log("Subscribe Error:" + error)
-        return
-    }
-    console.log(`${granted[0].topic} was subscribed`)
-    document.querySelector('#txtTopic').readOnly = true
-    document.querySelector('#btnSubscribe').disabled = "disabled"
-    document.querySelector('#btnUnsubscribe').disabled = null
-}
-
-function onunsubscribe(error) {
-    if (error) {
-        console.log("Unsubscribe Error:" + error)
-        return
-    }
-    console.log("Unsubscribed.")
-    document.querySelector('#txtTopic').readOnly = false
-    document.querySelector('#btnSubscribe').disabled = null
-    document.querySelector('#btnUnsubscribe').disabled = "disabled"
-}
-
-function onmessage(topic, message) {
-    json = JSON.parse(message)
-
-    const tbl = document.querySelector('#tblMessages')
-    var tr = tbl.insertRow(1);
-    tr.insertCell(0).textContent = new Date().toISOString()
-
-    for (keyword of keywords.split(',')) {
-        var cell = tr.insertCell(-1);
-        cell.textContent = json[keyword]
-    }
-    console.log(topic + ": " + message.toString())
-}
-
-async function setUrl(value) {
-    url = value;
-    console.log("Set URL: " + value);
-}
-
-async function setTopic(value) {
-    topic = value;
-    console.log("Set Topic: " + value);
-}
-
-async function setKeywords(value) {
-    keywords = value;
-    console.log("Set Keywords: " + value);
-}
 
 async function btnConnect_onclick() {
     console.log("Conncting...")
@@ -193,6 +133,24 @@ async function btnDisconnect_onclick() {
     client.end();
 }
 
+function onconnect(connack) {
+    console.log('Connected.')
+    document.querySelector('#txtUrl').readOnly = true
+    document.querySelector('#btnConnect').disabled = "disabled"
+    document.querySelector('#btnDisconnect').disabled = null
+    document.querySelector('#btnSubscribe').disabled = null
+    document.querySelector('#btnUnsubscribe').disabled = "disabled"
+}
+
+function ondclose() {
+    console.log('Disconnected.')
+    document.querySelector('#txtUrl').readOnly = false
+    document.querySelector('#btnConnect').disabled = null
+    document.querySelector('#btnDisconnect').disabled = "disabled"
+    document.querySelector('#btnSubscribe').disabled = "disabled"
+    document.querySelector('#btnUnsubscribe').disabled = "disabled"
+}
+
 async function btnSubscribe_onclick() {
     console.log("Subscribing...")
     let options = { qos: 0 }
@@ -204,20 +162,139 @@ async function btnUnsubscribe_onclick() {
     client.unsubscribe(topic, onunsubscribe)
 }
 
-async function btnApply_onclick() {
-    let headers = keywords.split(',')
-    headers.unshift('received at')
-    
-    console.log("Clear messages...")
-    const tbl = document.querySelector('#tblMessages')
-    while (tbl.rows.length > 0) tbl.deleteRow(0);
-
-    const tr = tbl.insertRow(0);
-    for (header of headers) {
-        const th = document.createElement('th')
-        th.innerText = header
-        tr.appendChild(th)
+function onsubscribe(error, granted) {
+    if (error) {
+        console.log("Subscribe Error:" + error)
+        return
     }
+    console.log(`${granted[0].topic} was subscribed`)
+    document.querySelector('#txtTopic').readOnly = true
+    document.querySelector('#btnSubscribe').disabled = "disabled"
+    document.querySelector('#btnUnsubscribe').disabled = null
+}
+
+function onunsubscribe(error) {
+    if (error) {
+        console.log("Unsubscribe Error:" + error)
+        return
+    }
+    console.log("Unsubscribed.")
+    document.querySelector('#txtTopic').readOnly = false
+    document.querySelector('#btnSubscribe').disabled = null
+    document.querySelector('#btnUnsubscribe').disabled = "disabled"
+}
+
+function btnApply_onclick() {
+    console.log("Clear messages...")
+
+    table = document.querySelector('#tblTopic')
+    headers = keywords.split(',')
+    initTable(table, headers)
+}
+
+function initTable(table, keywords) {
+    while (table.rows.length > 0) table.deleteRow(0);
+
+    row = table.tHead.insertRow(-1)
+    for (keyword of keywords) {
+        items = keyword.split(':')
+        cell = row.insertCell(-1)
+        cell.setAttribute('keyword', items[0])
+        cell.textContent = items[items.length-1]
+    }
+}
+
+function onmessage(topic, message) {
+    json = toJson(message)
+    
+    received_at = new Date().toISOString()
+
+    table = document.querySelector('#tblTopic')
+    updateTable(table, received_at, topic, json);
+
+    ul = document.querySelector('#ulMessage')
+    addMessage(ul, received_at, topic, json)
+}
+
+function toJson(message) {
+    json = {}
+    try {
+        json = JSON.parse(message)
+        if (Array.isArray(json)) {
+            json = {'array': json }
+            console.log(`Array type json topic=${topic}`)
+        } else if (typeof json === 'string') {
+            json = {'string': json }
+            console.log(`String type json topic=${topic}`)
+        } else if (typeof json === 'number') {
+            json = {'number': json }
+            console.log(`Number type json topic=${topic}`)
+        } else if (typeof json === 'boolean') {
+            json = {'boolean': json }
+            console.log(`Boolean type json topic=${topic}`)
+        } else if (json === null) {
+            json = {}
+            console.log(`Null type json topic=${topic}`)
+        }
+    } catch(e) {
+        console.error(`${e.message}: topic=${topic}, message = ${message}`)
+        json['error'] = e.message
+    }
+    return json
+}
+
+function updateTable(table, received_at, topic, json) {
+    json['topic'] = topic
+    json['received_at'] = received_at
+
+    var tr = getOrCreateRow(table, 0, topic);
+    for (c=0; c<table.tHead.rows[0].cells.length; c++) {
+        th = table.tHead.rows[0].cells[c]
+        keyword = th.getAttribute('keyword')
+        tr.cells[c].textContent = json[keyword]
+    }
+}
+
+function getOrCreateRow(table, colIndex, value) {
+    for (row of table.tBodies[0].rows) {
+        if (row.cells[colIndex].textContent === value) {
+            return row
+        }
+    }
+    return createRow(table)
+}
+
+function createRow(table) {
+    row = table.tBodies[0].insertRow(-1)
+    for (i=0; i<table.tHead.rows[0].cells.length; i++) {
+        row.insertCell(-1)
+    }
+    return row
+}
+
+function btnClear_onclick() {
+    ul = document.querySelector('#ulMessage')
+    while (ul.firstChild) {
+        ul.removeChild(ul.firstChild);
+    }
+}
+
+function addMessage(ul, received_at, topic, json) {
+    cul = document.createElement('ul')
+    ul.insertBefore(cul, ul.firstChild)
+
+    li = document.createElement('li')
+    li.innerText = topic
+    cul.appendChild(li)
+
+    li = document.createElement('li')
+    li.innerText = JSON.stringify(json, null, 4)
+    cul.appendChild(li)
+
+    li = document.createElement('li')
+    li.innerText = received_at
+    ul.insertBefore(li, ul.firstChild)
+
 }
 </script>
 
