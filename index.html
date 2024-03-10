@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
+    <meta charset="utf-8">
     <title>MQTT Client</title>
     <script src="https://unpkg.com/mqtt/dist/mqtt.min.js"></script>
     <style>
@@ -171,6 +172,8 @@ function onsubscribe(error, granted) {
     document.querySelector('#txtTopic').readOnly = true
     document.querySelector('#btnSubscribe').disabled = "disabled"
     document.querySelector('#btnUnsubscribe').disabled = null
+
+    document.title = `${topic} - MQTT Client`
 }
 
 function onunsubscribe(error) {
