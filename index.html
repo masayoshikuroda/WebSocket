@@ -92,9 +92,12 @@ const options = {
   password: '',
 }
 
-var url = "ws://localhost:8883"
-var topic = "#"
-var keywords = "topic:Topic,received_at: Last Update,address:Address,model:Model,temperature:Temp[℃],humidity:Humid[%],power:Power[W],battery:Batt[%],type:Type,measured_instantaneous:P[kW],value:Value"
+const params = new URLSearchParams(window.location.search);
+var host = params.get('host') ?? 'localhost'
+var port = params.get('port') ?? '8883'
+var url = `ws://${host}:${port}`
+var topic = params.get("topic") ?? '#'
+var keywords = params.get('keywords') ?? "topic:Topic,received_at:Last Update,address:Address,model:Model,temperature:Temp[℃],humidity:Humid[%],power:Power[W],battery:Batt[%],type:Type,measured_instantaneous:P[kW],value:Value"
 var client;
 
 document.querySelector('#txtUrl').value = url
